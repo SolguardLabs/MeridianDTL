@@ -1,0 +1,22 @@
+{
+  "name": "meridian-dtl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tests de integracion en Node para el motor C Meridian DTL.",
+  "scripts": {
+    "build": "node scripts/check-js.mjs && bash scripts/build.sh",
+    "test": "node --test --test-concurrency=1 \"tests/node/*.test.js\"",
+    "test:c": "bash scripts/build.sh",
+    "test:all": "bash scripts/tests.sh",
+    "ci": "bash scripts/ci.sh",
+    "fmt": "npx prettier --write --config .prettierrc --ignore-path .prettierignore \"tests/**/*.js\" \"scripts/**/*.mjs\" \"*.md\" \".github/**/*.yml\"",
+    "fmt:check": "npx prettier --check --config .prettierrc --ignore-path .prettierignore \"tests/**/*.js\" \"scripts/**/*.mjs\" \"*.md\" \".github/**/*.yml\""
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

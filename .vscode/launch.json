@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Meridian routed",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/meridiandtl",
+      "args": ["routed"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "build"
+    }
+  ]
+}
