@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 make clean
 bash scripts/build.sh
+make test-c
 
 echo "==> Ejecutando escenarios de humo"
 ./build/meridiandtl direct >/dev/null
@@ -14,6 +15,7 @@ echo "==> Ejecutando escenarios de humo"
 ./build/meridiandtl recompact >/dev/null
 ./build/meridiandtl rejections >/dev/null
 ./build/meridiandtl operations >/dev/null
+./build/meridiandtl risk-portfolio >/dev/null
 
 echo "==> Verificando JavaScript"
 resolve_node() {
@@ -36,3 +38,10 @@ fi
 
 "$NODE_BIN" scripts/check-js.mjs
 "$NODE_BIN" --test --test-concurrency=1 "tests/node/*.test.js"
+
+if command -v npm >/dev/null 2>&1; then
+    npm run fmt:check
+    npm run loc
+    npm run scan:public
+    npm run release:check
+fi

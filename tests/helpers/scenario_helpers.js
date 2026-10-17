@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +8,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const root = join(here, "..", "..");
 const cache = new Map();
 let built = false;
+const nativeBinary = join(
+    root,
+    "build",
+    process.platform === "win32" ? "meridiandtl.exe" : "meridiandtl",
+);
 
 function shellQuote(value) {
     return `'${String(value).replace(/'/g, "'\\''")}'`;
@@ -52,8 +58,20 @@ export function runInProject(command) {
     });
 }
 
+function runNativeScenario(name) {
+    return execFileSync(nativeBinary, [name], {
+        cwd: root,
+        encoding: "utf8",
+        timeout: 120_000,
+    });
+}
+
 export function build() {
     if (!built) {
+        if (existsSync(nativeBinary)) {
+            built = true;
+            return;
+        }
         runInProject(`
       mkdir -p build
       if [ ! -x build/meridiandtl ]; then
@@ -76,7 +94,9 @@ export function build() {
 export function scenario(name) {
     if (!cache.has(name)) {
         build();
-        const stdout = runInProject(`./build/meridiandtl ${shellQuote(name)}`);
+        const stdout = existsSync(nativeBinary)
+            ? runNativeScenario(name)
+            : runInProject(`./build/meridiandtl ${shellQuote(name)}`);
         cache.set(name, JSON.parse(stdout));
     }
     return cache.get(name);
@@ -84,7 +104,9 @@ export function scenario(name) {
 
 export function scenarioFresh(name) {
     build();
-    const stdout = runInProject(`./build/meridiandtl ${shellQuote(name)}`);
+    const stdout = existsSync(nativeBinary)
+        ? runNativeScenario(name)
+        : runInProject(`./build/meridiandtl ${shellQuote(name)}`);
     return JSON.parse(stdout);
 }
 

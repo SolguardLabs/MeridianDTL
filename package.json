@@ -1,6 +1,6 @@
 {
   "name": "meridian-dtl",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Tests de integracion en Node para el motor C Meridian DTL.",
@@ -11,7 +11,10 @@
     "test:all": "bash scripts/tests.sh",
     "ci": "bash scripts/ci.sh",
     "fmt": "npx prettier --write --config .prettierrc --ignore-path .prettierignore \"tests/**/*.js\" \"scripts/**/*.mjs\" \"*.md\" \".github/**/*.yml\"",
-    "fmt:check": "npx prettier --check --config .prettierrc --ignore-path .prettierignore \"tests/**/*.js\" \"scripts/**/*.mjs\" \"*.md\" \".github/**/*.yml\""
+    "fmt:check": "npx prettier --check --config .prettierrc --ignore-path .prettierignore \"tests/**/*.js\" \"scripts/**/*.mjs\" \"docs/**/*.md\" \"*.md\" \".github/**/*.yml\"",
+    "loc": "node scripts/check-loc.mjs",
+    "scan:public": "node scripts/scan-public.mjs",
+    "release:check": "node scripts/release-integrity.mjs"
   },
   "devDependencies": {
     "prettier": "^3.8.3"
