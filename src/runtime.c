@@ -1,6 +1,7 @@
 #include "meridian/runtime.h"
 
 #include "meridian/intent.h"
+#include "meridian/risk.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -690,6 +691,101 @@ static MdStatus scenario_operations(void) {
     return MD_OK;
 }
 
+static MdLaneRiskPosition risk_position(const char *label, MdAmount gross, MdAmount pending, MdAmount liquidity, MdAmount reserve, uint32_t probability, uint32_t recovery) {
+    MdLaneRiskPosition position;
+
+    memset(&position, 0, sizeof(position));
+    position.lane_id = md_digest_text("meridian-risk-lane", label);
+    snprintf(position.label, sizeof(position.label), "%s", label);
+    position.gross_volume = gross;
+    position.pending_settlement = pending;
+    position.available_liquidity = liquidity;
+    position.fee_reserve = reserve;
+    position.default_probability_bps = probability;
+    position.recovery_bps = recovery;
+    position.active = 1;
+    return position;
+}
+
+static void print_risk_report(const MdRiskReport *report) {
+    printf("{\n");
+    printf("      \"gross_volume\": %" PRIu64 ",\n", report->gross_volume);
+    printf("      \"pending_settlement\": %" PRIu64 ",\n", report->pending_settlement);
+    printf("      \"available_liquidity\": %" PRIu64 ",\n", report->available_liquidity);
+    printf("      \"expected_loss\": %" PRIu64 ",\n", report->expected_loss);
+    printf("      \"stress_loss\": %" PRIu64 ",\n", report->stress_loss);
+    printf("      \"loss_charge\": %" PRIu64 ",\n", report->loss_charge);
+    printf("      \"liquidity_gap\": %" PRIu64 ",\n", report->liquidity_gap);
+    printf("      \"fee_reserve\": %" PRIu64 ",\n", report->fee_reserve);
+    printf("      \"concentration_addon\": %" PRIu64 ",\n", report->concentration_addon);
+    printf("      \"required_capital\": %" PRIu64 ",\n", report->required_capital);
+    printf("      \"target_capital\": %" PRIu64 ",\n", report->target_capital);
+    printf("      \"available_capital\": %" PRIu64 ",\n", report->available_capital);
+    printf("      \"capital_surplus\": %" PRIu64 ",\n", report->capital_surplus);
+    printf("      \"capital_shortfall\": %" PRIu64 ",\n", report->capital_shortfall);
+    printf("      \"coverage_bps\": %u,\n", report->coverage_bps);
+    printf("      \"hhi_bps\": %u,\n", report->hhi_bps);
+    printf("      \"largest_lane_share_bps\": %u,\n", report->largest_lane_share_bps);
+    printf("      \"active_positions\": %zu,\n", report->active_positions);
+    printf("      \"decision\": \"%s\",\n", md_risk_decision_name(report->decision));
+    printf("      \"digest\": \"%s\"\n", report->digest.hex);
+    printf("    }");
+}
+
+static MdStatus scenario_risk_portfolio(void) {
+    MdRiskPortfolio portfolio;
+    MdRiskPolicy operating_policy;
+    MdRiskPolicy severe_policy;
+    MdRiskReport operating;
+    MdRiskReport severe;
+    MdStatus status;
+    MdAmount capital;
+
+    capital = 600000u;
+    md_risk_portfolio_init(&portfolio);
+    status = md_risk_portfolio_add(&portfolio, risk_position("direct-south", 900000u, 300000u, 290000u, 2000u, 120u, 6500u));
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_risk_portfolio_add(&portfolio, risk_position("priority-relay", 850000u, 280000u, 270000u, 1800u, 140u, 6000u));
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_risk_portfolio_add(&portfolio, risk_position("rebalance-zenith", 700000u, 220000u, 215000u, 1500u, 180u, 5500u));
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_risk_portfolio_add(&portfolio, risk_position("archive-buffer", 620000u, 200000u, 195000u, 1200u, 100u, 7000u));
+    if (status != MD_OK) {
+        return status;
+    }
+    operating_policy = md_risk_policy_operating();
+    severe_policy = md_risk_policy_severe();
+    status = md_risk_analyze(&portfolio, &operating_policy, capital, &operating);
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_risk_analyze(&portfolio, &severe_policy, capital, &severe);
+    if (status != MD_OK) {
+        return status;
+    }
+
+    printf("{\n");
+    printf("  \"scenario\": \"risk-portfolio\",\n");
+    printf("  \"network_id\": %u,\n", MD_NETWORK_ID);
+    printf("  \"available_capital\": %" PRIu64 ",\n", capital);
+    printf("  \"profiles\": {\n");
+    printf("    \"operating\": ");
+    print_risk_report(&operating);
+    printf(",\n");
+    printf("    \"severe\": ");
+    print_risk_report(&severe);
+    printf("\n");
+    printf("  }\n");
+    printf("}\n");
+    return MD_OK;
+}
+
 MdStatus md_runtime_run(const char *scenario) {
     if (scenario == 0 || scenario[0] == '\0' || strcmp(scenario, "routed") == 0) {
         return scenario_routed();
@@ -708,6 +804,9 @@ MdStatus md_runtime_run(const char *scenario) {
     }
     if (strcmp(scenario, "operations") == 0) {
         return scenario_operations();
+    }
+    if (strcmp(scenario, "risk-portfolio") == 0) {
+        return scenario_risk_portfolio();
     }
     fprintf(stderr, "unknown scenario: %s\n", scenario);
     return MD_ERR_ARGUMENT;

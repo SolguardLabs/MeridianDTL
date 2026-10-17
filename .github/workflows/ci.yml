@@ -1,29 +1,59 @@
-name: ci
+name: CI
 
 on:
   push:
+    branches: [main, production, "release/**"]
+    tags: ["v*"]
   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-      - name: Setup Node
-        uses: actions/setup-node@v7
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
-
-      - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-
-      - name: Install JavaScript dependencies
-        run: npm install
-
-      - name: Run CI
-        run: bash scripts/ci.sh
-
-      - name: Check formatting
-        run: npm run fmt:check
+          cache: npm
+      - if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: make mingw-w64-ucrt-x86_64-gcc
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npm run ci
+      - if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          make clean
+          make all
+          make test-c
+          ./build/meridiandtl.exe direct >/dev/null
+          ./build/meridiandtl.exe routed >/dev/null
+          ./build/meridiandtl.exe epoch-batch >/dev/null
+          ./build/meridiandtl.exe recompact >/dev/null
+          ./build/meridiandtl.exe rejections >/dev/null
+          ./build/meridiandtl.exe operations >/dev/null
+          ./build/meridiandtl.exe risk-portfolio >/dev/null
+      - if: runner.os == 'Windows'
+        run: |
+          node scripts/check-js.mjs
+          npm test
+          npm run fmt:check
+          npm run loc
+          npm run scan:public
+          npm run release:check

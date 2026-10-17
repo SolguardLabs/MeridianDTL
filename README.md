@@ -1,135 +1,169 @@
-# Meridian DTL
+# MeridianDTL
 
-![banner](./assets/banner.png)
+![MeridianDTL](./assets/banner.png)
 
-Meridian DTL es un motor determinista de liquidacion escrito en C para rutas
-multi-hop entre bovedas internas. El sistema modela intenciones firmadas,
-reservas, compactacion de rutas, receipts operativos y settlements por epoch
-sobre un ledger local con conservacion de suministro.
+[![CI](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/ci.yml/badge.svg)](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/ci.yml)
+[![Release integrity](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/release-integrity.yml/badge.svg)](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/release-integrity.yml)
+[![C11](https://img.shields.io/badge/C-C11-A8B9CC?logo=c)](https://www.open-std.org/jtc1/sc22/wg14/)
+[![Release](https://img.shields.io/badge/release-Production%201.0.0-F4E6CE)](https://github.com/SolguardLabs/MeridianDTL/releases/tag/v1.0.0)
 
-El proyecto esta disenado como una implementacion compacta de referencia para
-validar flujos de liquidacion DTL en integraciones donde el plan operativo puede
-derivarse a partir de una intencion de pago y de lanes internas de liquidez.
+MeridianDTL es un motor determinista de liquidación en C11 para intenciones firmadas y rutas multi-hop entre bóvedas internas. Coordina reservas, compactación de rutas, tarifas, receipts por epoch y settlement sobre un ledger local con conservación verificable.
 
-## Caracteristicas principales
+La versión 1.0.0 añade un modelo independiente de riesgo de cartera: pérdida esperada, stress de default, gap de liquidez, concentración HHI, capital objetivo y decisiones operativas `approve`, `review` o `hold`.
 
-- Motor C sin dependencias externas.
-- Intenciones firmadas con dominio de autorizacion estable.
-- Ledger con cuentas, bovedas internas, lanes de settlement y reservas.
-- Rutas multi-hop con compactacion determinista antes de liquidacion.
-- Receipts por epoch para registrar importe neto, cargos y digest de ruta.
-- Comprobacion de conservacion despues de cada transicion critica.
-- Salida JSON estable para escenarios de integracion.
-- Tests JavaScript sobre la interfaz publica del ejecutable.
+## Capacidades
+
+- Intenciones y receipts con dominios criptográficos separados.
+- Ledger de cuentas, activos, bóvedas, lanes, reservas y journal.
+- Rutas multi-hop compactadas de forma determinista.
+- Tarifas de operador y reserva calculadas en puntos básicos.
+- Control de nonces, epoch, límites y conservación de suministro.
+- Exposición por lane y bóveda, con digests reproducibles.
+- Capital bajo perfiles operativo y severo.
+- CLI JSON estable y suites C/JavaScript.
 
 ## Arquitectura
 
-El codigo esta organizado por dominios funcionales:
+```mermaid
+flowchart LR
+    CLI[CLI scenarios] --> Runtime[Runtime]
+    Runtime --> Intent[Signed intents]
+    Intent --> Route[Route planning]
+    Route --> Compact[Compaction]
+    Intent --> Ledger[(Ledger)]
+    Compact --> Quote[Settlement quote]
+    Quote --> Ledger
+    Ledger --> Receipt[Receipt]
+    Ledger --> Exposure[Exposure views]
+    Exposure --> Risk[Risk portfolio]
+    Risk --> Capital[Capital gate]
+```
 
-- `include/meridian`: API publica interna del motor.
-- `src/amount.c`: operaciones de importes y basis points.
-- `src/codec.c`: serializacion canonica para digests y firmas.
-- `src/digest.c`: digests deterministas de 32 bytes representados en hex.
-- `src/crypto.c`: identidades y autenticadores deterministas de escenario.
-- `src/ledger.c`: estado contable, cuentas, bovedas, lanes y journal.
-- `src/route.c`: planes multi-hop, compactacion y calculo de cargos.
-- `src/intent.c`: intenciones firmadas, reservas y receipts.
-- `src/runtime.c`: escenarios reproducibles y reportes JSON.
-- `src/main.c`: CLI del motor.
+```mermaid
+stateDiagram-v2
+    [*] --> empty
+    empty --> reserved: reserve intent
+    reserved --> settled: settle after epoch
+    reserved --> cancelled: cancel reservation
+    settled --> [*]
+    cancelled --> [*]
+```
 
-## Flujo de liquidacion
+```mermaid
+sequenceDiagram
+    participant P as Payer
+    participant M as MeridianDTL
+    participant V as Vaults
+    participant O as Operator
+    P->>M: Signed intent
+    M->>M: Verify nonce, deadline and policy
+    M->>V: Reserve gross amount
+    O->>M: Settle at epoch
+    M->>M: Compact route and quote
+    M->>V: Move net and reserves
+    M-->>O: Deterministic receipt
+```
 
-1. El ledger se inicializa con un `network_id`, activos, cuentas y bovedas.
-2. Un pagador crea una intencion con importe bruto, activo, fecha limite, nonce
-   y restricciones operativas.
-3. La intencion se firma dentro del dominio `meridian-intent-v1`.
-4. El ledger reserva el importe bruto y registra el plan operativo observado.
-5. El operador ejecuta la ruta en una epoch concreta y emite un receipt.
-6. Antes de liquidar, el motor compacta hops compatibles para reducir ruido
-   operativo en el journal.
-7. El settlement acredita beneficiario, operador y reserva de lane segun el
-   plan resultante, y valida conservacion.
+## Modelo económico
 
-## Escenarios disponibles
+Para un importe bruto \(G\), tasa de operador \(f_o\) y reserva \(f_r\):
 
-El ejecutable acepta un argumento opcional de escenario. Si no se indica ninguno,
-ejecuta `routed`.
+```text
+operator_fee = floor(G × f_o / 10 000)
+reserve_fee  = floor(G × f_r / 10 000)
+net_amount   = G - operator_fee - reserve_fee
+```
+
+El modelo de riesgo calcula por lane:
+
+```text
+expected_loss = pending × probability_default × (1 - recovery)
+stressed_loss = pending × scenario_default
+liquidity_gap = max(pending - liquidity × (1 - haircut), 0)
+```
+
+Y agrega:
+
+```text
+required_capital = max(expected_loss, stressed_loss)
+                 + liquidity_gap + fee_reserve + concentration_addon
+target_capital   = required_capital × minimum_coverage
+```
+
+Los detalles y ejemplos están en [docs/modelo-economico.md](./docs/modelo-economico.md) y [docs/riesgo-y-capital.md](./docs/riesgo-y-capital.md).
+
+## Inicio rápido
+
+Requisitos: compilador C11, `make`, Node.js 24 y npm.
+
+```bash
+npm ci
+make all
+make test-c
+npm test
+```
+
+Ejecutar rutas:
 
 ```bash
 ./build/meridiandtl direct
 ./build/meridiandtl routed
 ./build/meridiandtl epoch-batch
 ./build/meridiandtl recompact
-./build/meridiandtl rejections
-./build/meridiandtl operations
 ```
 
-Cada escenario emite un reporte JSON con campos estables:
-
-- `scenario`: nombre del escenario.
-- `network_id`: identificador de red.
-- `asset`: activo liquidado.
-- `state_digest`: digest final del ledger.
-- `conservation_ok`: resultado de la comprobacion contable.
-- `balances`: saldos finales por rol.
-- `vaults`: balances de bovedas internas.
-- `receipt`: resumen del receipt principal cuando aplica.
-- `journal`: eventos contables relevantes.
-
-## Requisitos
-
-- Compilador C compatible con C11 (`gcc`, `clang` o `cc`).
-- `make`.
-- Node.js `24` o superior para tests JavaScript.
-
-En Windows, los scripts estan preparados para ejecutarse desde Git Bash o WSL.
-Si el compilador C esta en WSL y Node.js esta en Windows, usa los scripts
-PowerShell incluidos.
-
-## Instalacion
+Evaluar la cartera:
 
 ```bash
-bash scripts/build.sh
+./build/meridiandtl risk-portfolio
 ```
 
-## Comandos de desarrollo
+La salida compara el perfil operativo con el severo e incluye capital requerido, cobertura, déficit o superávit, concentración y digest.
+
+## Escenarios
+
+| Escenario        | Propósito                                   |
+| ---------------- | ------------------------------------------- |
+| `direct`         | Settlement de una lane directa              |
+| `routed`         | Liquidación multi-hop                       |
+| `epoch-batch`    | Reservas independientes por epoch           |
+| `recompact`      | Compactación de hops compatibles            |
+| `rejections`     | Rechazos de nonce, deadline y estado        |
+| `operations`     | Economía de lanes, cancelación y exposición |
+| `risk-portfolio` | Stress, concentración y capital             |
+
+## Componentes
+
+| Ruta               | Responsabilidad                           |
+| ------------------ | ----------------------------------------- |
+| `include/meridian` | Contratos públicos C                      |
+| `src/intent.c`     | Intenciones, reservas, quotes y receipts  |
+| `src/route.c`      | Planes, hops, digests y compactación      |
+| `src/ledger.c`     | Estado contable y conservación            |
+| `src/risk.c`       | Cartera, stress y capital                 |
+| `src/runtime.c`    | Escenarios JSON                           |
+| `tests/c`          | Pruebas matemáticas C                     |
+| `tests/node`       | Contratos de integración sobre el binario |
+
+## Validación
 
 ```bash
-bash scripts/build.sh    # compila el motor C
-bash scripts/tests.sh    # build y tests JavaScript
-bash scripts/ci.sh       # pipeline local completo
-node --test --test-concurrency=1 "tests/node/*.test.js"
-make clean
+npm run ci
 ```
 
-En Windows con WSL:
+La puerta ejecuta compilación con `-Wall -Wextra -Werror -pedantic`, pruebas C, escenarios de humo, sintaxis JavaScript, integración, Prettier, métricas, control terminológico e integridad del release. GitHub Actions repite los contratos en Linux y Windows.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/tests.ps1
-powershell -ExecutionPolicy Bypass -File scripts/ci.ps1
-```
+## Documentación
 
-Si se instala la dependencia de formato opcional:
+- [Arquitectura](./docs/arquitectura.md)
+- [Modelo económico](./docs/modelo-economico.md)
+- [Riesgo y capital](./docs/riesgo-y-capital.md)
+- [Operación](./docs/operacion.md)
+- [Integración](./docs/integracion.md)
+- [Seguridad](./SECURITY.md)
+- [Contribución](./CONTRIBUTING.md)
+- [Historial](./CHANGELOG.md)
 
-```bash
-npm install
-npm run fmt:check
-```
+## Licencia
 
-## Calidad y CI
-
-El workflow de GitHub Actions ejecuta:
-
-- instalacion de toolchain C y Node;
-- compilacion con `-Wall -Wextra -Werror -pedantic`;
-- ejecucion de escenarios desde el binario;
-- tests JavaScript con `node:test`;
-- verificacion de sintaxis JavaScript.
-
-Dependabot revisa GitHub Actions y dependencias npm semanales.
-
-## Estado del proyecto
-
-Meridian DTL es una implementacion de referencia para entornos de revision y no
-debe tratarse como infraestructura lista para produccion sin auditoria externa,
-modelado formal de invariantes y validacion de integracion especifica.
+MIT. Consulte [LICENSE](./LICENSE).
