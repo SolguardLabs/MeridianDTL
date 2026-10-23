@@ -6,7 +6,8 @@ MeridianDTL trata autorización, reservas y liquidación como límites de alta c
 
 | Versión | Estado              |
 | ------- | ------------------- |
-| 1.0.x   | Estable y mantenida |
+| 2.0.x   | Estable y mantenida |
+| 1.0.x   | Histórica           |
 | < 1.0   | Fuera de soporte    |
 
 ## Límites de confianza
@@ -45,6 +46,9 @@ flowchart LR
 - Las operaciones aritméticas detectan overflow y saldo insuficiente.
 - Un reporte de riesgo nunca muta ledger, reserva, ruta o receipt.
 - Los cálculos monetarios usan enteros y puntos básicos.
+- La firma de intención cubre también el digest canónico del plan económico.
+- La reserva de recuperación se incorpora al quote antes de comprobar techo de
+  tarifa y neto mínimo.
 
 ## Controles
 

@@ -521,6 +521,61 @@ static MdStatus scenario_recompact(void) {
     return MD_OK;
 }
 
+static MdStatus scenario_recovery(void) {
+    ScenarioEnv env;
+    MdDigest lane_recovery;
+    MdSettlementPlan plan;
+    MdIntentTerms terms;
+    MdSignedIntent signed_intent;
+    MdDigest reservation_id;
+    MdReceipt receipt;
+    MdCompactedPlan compacted;
+    const MdReservation *reservation;
+    MdStatus status;
+
+    status = setup_env(&env);
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_ledger_add_lane(&env.ledger, "recovery-orion", &env.asset,
+        &env.vault_north, &env.vault_south, &env.merchant,
+        MD_LANE_RECOVERY, 25u, 20u, &lane_recovery);
+    if (status != MD_OK) {
+        return status;
+    }
+    plan = base_plan(&env, &lane_recovery, 100000u, 80000u, 2500u, 2u);
+    status = md_plan_add_hop(&plan, route_hop(&lane_recovery,
+        &env.vault_north, &env.vault_relay, &env.bridge, 100000u, 3000u, 1u));
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_plan_add_hop(&plan, route_hop(&lane_recovery,
+        &env.vault_relay, &env.vault_south, &env.bridge, 100000u, 3000u, 2u));
+    if (status != MD_OK) {
+        return status;
+    }
+    terms = make_terms(&env, plan, 100000u, 0u, 8u, "merchant-recovery-cycle");
+    signed_intent = sign_terms(&env, terms);
+    status = md_ledger_reserve_intent(&env.ledger, &signed_intent, &reservation_id);
+    if (status != MD_OK) {
+        return status;
+    }
+    status = md_ledger_settle_reservation(&env.ledger, &reservation_id, 4u, &receipt);
+    if (status != MD_OK) {
+        return status;
+    }
+    reservation = md_ledger_find_reservation_const(&env.ledger, &reservation_id);
+    if (reservation == 0) {
+        return MD_ERR_INTERNAL;
+    }
+    status = md_plan_compact(&reservation->plan, &compacted);
+    if (status != MD_OK) {
+        return status;
+    }
+    print_report(&env, "recovery", &terms.intent_id, &reservation_id, &receipt, &compacted);
+    return MD_OK;
+}
+
 static MdStatus scenario_rejections(void) {
     ScenarioEnv env;
     MdSettlementPlan plan;
@@ -798,6 +853,9 @@ MdStatus md_runtime_run(const char *scenario) {
     }
     if (strcmp(scenario, "recompact") == 0) {
         return scenario_recompact();
+    }
+    if (strcmp(scenario, "recovery") == 0) {
+        return scenario_recovery();
     }
     if (strcmp(scenario, "rejections") == 0) {
         return scenario_rejections();

@@ -60,7 +60,7 @@ MdDigest md_route_hop_digest(const MdRouteHop *hop) {
 MdStatus md_plan_canonical(const MdSettlementPlan *plan, char *out, size_t out_len) {
     MdWriter writer;
 
-    if (plan == 0 || out == 0 || out_len == 0u) {
+    if (plan == 0 || out == 0 || out_len == 0u || plan->hop_count > MD_MAX_ROUTE_HOPS) {
         return MD_ERR_ARGUMENT;
     }
     md_writer_init(&writer, out, out_len);
@@ -121,7 +121,7 @@ MdStatus md_plan_compact(const MdSettlementPlan *plan, MdCompactedPlan *out) {
     MdSettlementPlan compacted;
     size_t removed = 0u;
 
-    if (plan == 0 || out == 0) {
+    if (plan == 0 || out == 0 || plan->hop_count > MD_MAX_ROUTE_HOPS) {
         return MD_ERR_ARGUMENT;
     }
     memset(out, 0, sizeof(*out));

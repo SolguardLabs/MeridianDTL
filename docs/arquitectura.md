@@ -8,6 +8,8 @@ flowchart TB
     Runtime --> Intent[intent.c]
     Intent --> Crypto[crypto + codec]
     Intent --> Route[route.c]
+    Intent --> Exposure[exposure.c]
+    Exposure --> Ledger
     Intent --> Ledger[ledger.c]
     Ledger --> Amount[amount.c]
     Ledger --> Digest[digest.c]

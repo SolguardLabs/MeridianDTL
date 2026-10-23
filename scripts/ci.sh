@@ -13,6 +13,7 @@ echo "==> Ejecutando escenarios de humo"
 ./build/meridiandtl routed >/dev/null
 ./build/meridiandtl epoch-batch >/dev/null
 ./build/meridiandtl recompact >/dev/null
+./build/meridiandtl recovery >/dev/null
 ./build/meridiandtl rejections >/dev/null
 ./build/meridiandtl operations >/dev/null
 ./build/meridiandtl risk-portfolio >/dev/null
