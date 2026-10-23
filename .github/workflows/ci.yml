@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, production, "release/**"]
+    branches: [main, production, "release/**", "agent/**"]
     tags: ["v*"]
   pull_request:
 
@@ -46,6 +46,7 @@ jobs:
           ./build/meridiandtl.exe routed >/dev/null
           ./build/meridiandtl.exe epoch-batch >/dev/null
           ./build/meridiandtl.exe recompact >/dev/null
+          ./build/meridiandtl.exe recovery >/dev/null
           ./build/meridiandtl.exe rejections >/dev/null
           ./build/meridiandtl.exe operations >/dev/null
           ./build/meridiandtl.exe risk-portfolio >/dev/null

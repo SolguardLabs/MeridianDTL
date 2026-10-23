@@ -5,11 +5,14 @@
 [![CI](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/ci.yml/badge.svg)](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/ci.yml)
 [![Release integrity](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/release-integrity.yml/badge.svg)](https://github.com/SolguardLabs/MeridianDTL/actions/workflows/release-integrity.yml)
 [![C11](https://img.shields.io/badge/C-C11-A8B9CC?logo=c)](https://www.open-std.org/jtc1/sc22/wg14/)
-[![Release](https://img.shields.io/badge/release-Production%201.0.0-F4E6CE)](https://github.com/SolguardLabs/MeridianDTL/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/release-Production%202.0.0-F4E6CE)](https://github.com/SolguardLabs/MeridianDTL/releases/tag/v2.0.0)
 
 MeridianDTL es un motor determinista de liquidación en C11 para intenciones firmadas y rutas multi-hop entre bóvedas internas. Coordina reservas, compactación de rutas, tarifas, receipts por epoch y settlement sobre un ledger local con conservación verificable.
 
-La versión 1.0.0 añade un modelo independiente de riesgo de cartera: pérdida esperada, stress de default, gap de liquidez, concentración HHI, capital objetivo y decisiones operativas `approve`, `review` o `hold`.
+La versión 2.0.0 vincula la autorización firmada al plan completo y añade una
+reserva de exposición para rutas de recuperación. Se mantiene el análisis de
+cartera: pérdida esperada, estrés de default, gap de liquidez, concentración
+HHI y capital objetivo.
 
 ## Capacidades
 
@@ -17,6 +20,7 @@ La versión 1.0.0 añade un modelo independiente de riesgo de cartera: pérdida 
 - Ledger de cuentas, activos, bóvedas, lanes, reservas y journal.
 - Rutas multi-hop compactadas de forma determinista.
 - Tarifas de operador y reserva calculadas en puntos básicos.
+- Prima de exposición por utilización de bóveda en lanes de recuperación.
 - Control de nonces, epoch, límites y conservación de suministro.
 - Exposición por lane y bóveda, con digests reproducibles.
 - Capital bajo perfiles operativo y severo.
@@ -32,6 +36,8 @@ flowchart LR
     Route --> Compact[Compaction]
     Intent --> Ledger[(Ledger)]
     Compact --> Quote[Settlement quote]
+    Compact --> Charge[Route exposure charge]
+    Charge --> Quote
     Quote --> Ledger
     Ledger --> Receipt[Receipt]
     Ledger --> Exposure[Exposure views]
@@ -66,13 +72,19 @@ sequenceDiagram
 
 ## Modelo económico
 
-Para un importe bruto \(G\), tasa de operador \(f_o\) y reserva \(f_r\):
+Para un importe bruto `G`, tasa de operador `f_o` y reserva `f_r`:
 
 ```text
 operator_fee = floor(G × f_o / 10 000)
 reserve_fee  = floor(G × f_r / 10 000)
 net_amount   = G - operator_fee - reserve_fee
 ```
+
+En lanes `recovery`, la reserva incorpora además una prima por hop del plan
+ejecutable. Cada tramo pondera su importe por utilización de la bóveda origen
+y por su peso económico; el resultado se acredita a la bóveda de reserva de
+la lane. [Recuperación y exposición](./docs/recuperacion-y-exposicion.md)
+desarrolla unidades, límites y un ejemplo numérico.
 
 El modelo de riesgo calcula por lane:
 
@@ -110,6 +122,7 @@ Ejecutar rutas:
 ./build/meridiandtl routed
 ./build/meridiandtl epoch-batch
 ./build/meridiandtl recompact
+./build/meridiandtl recovery
 ```
 
 Evaluar la cartera:
@@ -128,6 +141,7 @@ La salida compara el perfil operativo con el severo e incluye capital requerido,
 | `routed`         | Liquidación multi-hop                       |
 | `epoch-batch`    | Reservas independientes por epoch           |
 | `recompact`      | Compactación de hops compatibles            |
+| `recovery`       | Liquidación con reserva de exposición       |
 | `rejections`     | Rechazos de nonce, deadline y estado        |
 | `operations`     | Economía de lanes, cancelación y exposición |
 | `risk-portfolio` | Stress, concentración y capital             |
@@ -141,6 +155,7 @@ La salida compara el perfil operativo con el severo e incluye capital requerido,
 | `src/route.c`      | Planes, hops, digests y compactación      |
 | `src/ledger.c`     | Estado contable y conservación            |
 | `src/risk.c`       | Cartera, stress y capital                 |
+| `src/exposure.c`   | Utilización y prima de rutas recovery     |
 | `src/runtime.c`    | Escenarios JSON                           |
 | `tests/c`          | Pruebas matemáticas C                     |
 | `tests/node`       | Contratos de integración sobre el binario |
@@ -158,6 +173,7 @@ La puerta ejecuta compilación con `-Wall -Wextra -Werror -pedantic`, pruebas C,
 - [Arquitectura](./docs/arquitectura.md)
 - [Modelo económico](./docs/modelo-economico.md)
 - [Riesgo y capital](./docs/riesgo-y-capital.md)
+- [Recuperación y exposición](./docs/recuperacion-y-exposicion.md)
 - [Operación](./docs/operacion.md)
 - [Integración](./docs/integracion.md)
 - [Seguridad](./SECURITY.md)

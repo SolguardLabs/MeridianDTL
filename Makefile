@@ -27,6 +27,8 @@ run: $(BIN)
 test-c: $(BIN)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/c/risk_test.c $(filter-out src/main.c src/runtime.c,$(SRC)) $(LDFLAGS) -o $(BUILD_DIR)/risk_test
 	./$(BUILD_DIR)/risk_test
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/c/exposure_test.c $(filter-out src/main.c src/runtime.c,$(SRC)) $(LDFLAGS) -o $(BUILD_DIR)/exposure_test
+	./$(BUILD_DIR)/exposure_test
 
 clean:
 	rm -rf $(BUILD_DIR)

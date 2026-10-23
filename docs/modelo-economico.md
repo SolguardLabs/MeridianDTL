@@ -21,6 +21,10 @@ reserve_fee  = floor(gross × reserve_bps / 10 000)
 net          = gross - operator_fee - reserve_fee
 ```
 
+Para una lane de recuperación, `reserve_fee` suma la prima de exposición
+calculada por [el modelo de recuperación](./recuperacion-y-exposicion.md).
+La misma identidad de tres tramos se mantiene en el receipt.
+
 La resta final conserva todos los residuos de redondeo en el neto y garantiza `gross = net + operator_fee + reserve_fee`.
 
 ## Bóvedas

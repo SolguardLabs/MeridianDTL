@@ -1,4 +1,5 @@
 #include "meridian/intent.h"
+#include "meridian/exposure.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -19,6 +20,7 @@ void md_intent_terms_init(MdIntentTerms *terms) {
 
 MdStatus md_intent_authorization_payload(const MdIntentTerms *terms, char *out, size_t out_len) {
     MdWriter writer;
+    MdDigest plan_digest;
 
     if (terms == 0 || out == 0 || out_len == 0u) {
         return MD_ERR_ARGUMENT;
@@ -33,6 +35,8 @@ MdStatus md_intent_authorization_payload(const MdIntentTerms *terms, char *out, 
     md_writer_u64(&writer, "nonce", terms->payer_nonce);
     md_writer_u64(&writer, "deadline", terms->deadline_epoch);
     md_writer_field(&writer, "memo", terms->memo);
+    plan_digest = md_plan_digest(&terms->plan);
+    md_writer_digest(&writer, "plan", &plan_digest);
     md_writer_put(&writer, "}");
     return md_writer_status(&writer);
 }
@@ -121,6 +125,9 @@ static MdStatus md_validate_plan_catalog(const MdLedger *ledger, const MdIntentT
         return MD_ERR_NOT_FOUND;
     }
     if (!md_digest_equal(&lane->asset_id, &terms->asset_id)) {
+        return MD_ERR_POLICY;
+    }
+    if (!md_digest_equal(&lane->terminal_account, &terms->plan.beneficiary)) {
         return MD_ERR_POLICY;
     }
     if (md_ledger_find_account_const(ledger, &terms->plan.beneficiary) == 0 ||
@@ -285,12 +292,27 @@ MdStatus md_quote_settlement(const MdLedger *ledger, const MdReservation *reserv
     if (!md_digest_equal(&lane->asset_id, &reservation->asset_id)) {
         return MD_ERR_POLICY;
     }
+    if (!md_digest_equal(&lane->terminal_account, &reservation->plan.beneficiary) ||
+        !md_digest_equal(&compacted->effective_beneficiary, &reservation->plan.beneficiary) ||
+        !md_digest_equal(&compacted->effective_lane, &reservation->plan.settlement_lane)) {
+        return MD_ERR_POLICY;
+    }
     quote->lane_id = lane->id;
     quote->beneficiary = lane->terminal_account;
     quote->gross_amount = reservation->gross_amount;
     if (md_amount_mul_bps(reservation->gross_amount, lane->operator_fee_bps, &quote->operator_fee) != MD_OK ||
         md_amount_mul_bps(reservation->gross_amount, lane->reserve_bps, &quote->reserve_fee) != MD_OK) {
         return MD_ERR_POLICY;
+    }
+    if (lane->lane_class == MD_LANE_RECOVERY) {
+        MdAmount route_charge;
+        MdAmount reserve_total;
+
+        if (md_route_exposure_charge(ledger, compacted, &route_charge) != MD_OK ||
+            md_amount_add(quote->reserve_fee, route_charge, &reserve_total) != MD_OK) {
+            return MD_ERR_POLICY;
+        }
+        quote->reserve_fee = reserve_total;
     }
     if (md_amount_add(quote->operator_fee, quote->reserve_fee, &fee_total) != MD_OK) {
         return MD_ERR_POLICY;

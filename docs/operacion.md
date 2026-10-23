@@ -38,4 +38,6 @@ Detenga nuevas reservas del activo afectado, conserve artefactos, reproduzca con
 
 ## Release
 
-`main`, `production` y `v1.0.0` deben apuntar al mismo commit. El tag es anotado y el release se publica como `Production 1.0.0`. CI e integridad deben pasar para candidato, PR, main, production, tag y evento de publicación.
+`main`, `production` y `v2.0.0` deben apuntar al mismo commit. El tag es
+anotado y el release se publica como `Production 2.0.0`. CI e integridad
+deben pasar para candidato, PR, main, production, tag y evento de publicación.

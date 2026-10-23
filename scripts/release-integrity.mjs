@@ -10,6 +10,7 @@ const required = [
     "assets/banner.png",
     "docs/arquitectura.md",
     "docs/modelo-economico.md",
+    "docs/recuperacion-y-exposicion.md",
     "docs/riesgo-y-capital.md",
     "docs/operacion.md",
     "docs/integracion.md",
@@ -21,8 +22,9 @@ for (const file of required) {
 }
 
 const protectedSources = {
-    "src/intent.c": "32879b24d134b0aeeb0ceff2ebc4531dc8cd60f4",
-    "src/route.c": "41e6e956506d1afdd3e4de8295e72faaf75dfef4",
+    "src/intent.c": "6263ca047a390a5fa315f1426fa6be5deb331f39",
+    "src/exposure.c": "4fc918c430216125063705c215ef91efceef806f",
+    "src/route.c": "93b55718eda37d0620d9213a803a82937df0c2db",
     "src/ledger.c": "20c532387ec0ced88ec57af0accf9e491d5d8bee",
 };
 for (const [file, expected] of Object.entries(protectedSources)) {
@@ -33,7 +35,7 @@ for (const [file, expected] of Object.entries(protectedSources)) {
 }
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-if (pkg.version !== "1.0.0") {
+if (pkg.version !== "2.0.0") {
     throw new Error(`Unexpected package version: ${pkg.version}`);
 }
 const banner = readFileSync("assets/banner.png");
