@@ -17,7 +17,7 @@
     "release:check": "node scripts/release-integrity.mjs"
   },
   "devDependencies": {
-    "prettier": "^3.8.3"
+    "prettier": "^3.10.1"
   },
   "engines": {
     "node": ">=24.0.0"
